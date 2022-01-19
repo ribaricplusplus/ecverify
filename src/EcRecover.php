@@ -63,16 +63,21 @@ class EcRecover
      */
     public static function phpEcRecover(string $message_hash, string $signature)
     {
-        $return = NULL;
-
         $ec = new EC('secp256k1');
         $sign   = ["r" => substr($signature, 2, 64), "s" => substr($signature, 66, 64)];
-        $recid  = ord(hex2bin(substr($signature, 130, 2))) - 27;
 
-        $pubKey = $ec->recoverPubKey($message_hash, $sign, $recid);
+        // Recovery parameter must be a number between 0 and 3. See https://github.com/indutny/elliptic/blob/43ac7f230069bd1575e1e4a58394a512303ba803/lib/elliptic/ec/index.js#L226
+        for( $recid = 0; $recid < 4; ++$recid ) {
+            try {
+                $pubKey = $ec->recoverPubKey($message_hash, $sign, $recid);
+                $recoveredAddress = "0x" . substr(Keccak::hash(substr(hex2bin($pubKey->encode("hex")), 1), 256), 24);
+                return $recoveredAddress;
+            } catch ( \Exception $e ) {
+                continue;
+            }
+        }
 
-        $recoveredAddress = "0x" . substr(Keccak::hash(substr(hex2bin($pubKey->encode("hex")), 1), 256), 24);
-        return $recoveredAddress;
+        throw new \Exception( 'Recovery failed.' );
     }
 
     /**
